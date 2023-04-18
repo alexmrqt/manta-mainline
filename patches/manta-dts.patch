@@ -1,0 +1,719 @@
+diff --git a/arch/arm/boot/dts/Makefile b/arch/arm/boot/dts/Makefile
+index 6aa7dc4db..8e2d645f3 100644
+--- a/arch/arm/boot/dts/Makefile
++++ b/arch/arm/boot/dts/Makefile
+@@ -228,6 +228,7 @@ dtb-$(CONFIG_ARCH_EXYNOS4) += \
+ 	exynos4412-trats2.dtb
+ dtb-$(CONFIG_ARCH_EXYNOS5) += \
+ 	exynos5250-arndale.dtb \
++	exynos5250-manta.dtb \
+ 	exynos5250-smdk5250.dtb \
+ 	exynos5250-snow.dtb \
+ 	exynos5250-snow-rev5.dtb \
+diff --git a/arch/arm/boot/dts/exynos5250-manta.dts b/arch/arm/boot/dts/exynos5250-manta.dts
+new file mode 100644
+index 000000000..a675861ec
+--- /dev/null
++++ b/arch/arm/boot/dts/exynos5250-manta.dts
+@@ -0,0 +1,701 @@
++/dts-v1/;
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/clock/maxim,max77686.h>
++#include <dt-bindings/power/summit,smb347-charger.h>
++#include "exynos-pinctrl.h"
++#include "exynos5250.dtsi"
++
++/ {
++	model = "Google Nexus 10";
++	compatible = "samsung,manta", "samsung,exynos5250", "samsung,exynos5";
++
++	memory@40000000 {
++		device_type = "memory";
++		//reg = <0x40000000 0x7FEFFFFF>;
++		reg = <0x40000000 0x20000000
++		       0x60000000 0x20000000
++		       0x80000000 0x20000000
++		       0xa0000000 0x1FF00000>;
++	};
++
++	chosen {
++		bootargs = "vmalloc=512M s3c2410-wdt.tmr_atboot=1 s3c2410-wdt.tmr_margin=30 wire.search_count=5 PMOS_NO_OUTPUT_REDIRECT";
++		stdout-path = &serial_2;
++	};
++
++	fixed-rate-clocks {
++		xxti {
++			compatible = "samsung,clock-xxti";
++			clock-frequency = <24000000>;
++		};
++
++		xusbxti {
++			compatible = "samsung,clock-xusbxti";
++			clock-frequency = <24000000>;
++		};
++	};
++
++	firmware@204f000 {
++		compatible = "samsung,secure-firmware";
++		reg = <0x0204f000 0x1000>;
++	};
++
++	wlan_pwrseq: mmc1-pwrseq {
++		compatible = "mmc-pwrseq-simple";
++		reset-gpios = <&gpv1 0 GPIO_ACTIVE_LOW>;
++		pinctrl-0 = <&wlan_pmena>;
++		pinctrl-names = "default";
++		clocks = <&max77686 MAX77686_CLK_PMIC>;
++		clock-names = "ext_clock";
++		post-power-on-delay-ms = <300>; //300ms on probe, else 500ms
++		power-off-delay-us = <50>;
++	};
++
++	battery_cell: battery-cell {
++		compatible = "simple-battery";
++		device-chemistry = "lithium-ion";
++		constant-charge-current-max-microamp = <2500000>;
++		constant-charge-voltage-max-microvolt = <4300000>;
++		precharge-current-microamp = <200000>;
++		charge-term-current-microamp = <250000>;
++
++		power-supplies = <&power_supply>;
++	};
++
++	backlight_reg: fixed-regulator-backlight {
++		compatible = "regulator-fixed";
++		regulator-name = "APS_EN_18V";
++		pinctrl-0 = <&aps_en_18v>;
++		pinctrl-names = "default";
++		status = "okay";
++	};
++
++	backlight: backlight {
++		compatible = "pwm-backlight";
++		pwms = <&pwm 0 1000000 0>;
++		brightness-levels = <0 100 500 1000 1500 2000 2500 2800>;
++		default-brightness-level = <6>;
++		power-supply = <&backlight_reg>;
++		enable-gpios = <&gpg0 5 GPIO_ACTIVE_HIGH>;
++		pinctrl-0 = <&led_bl_rst &pwm0_out>;
++		pinctrl-names = "default";
++	};
++
++	panel_reg: fixed-regulator-panel {
++		compatible = "regulator-fixed";
++		regulator-name = "LCD_EN";
++	};
++
++	panel: panel {
++		compatible = "samsung,ltl101dl02-002";
++		label = "lcd";
++
++		backlight = <&backlight>;
++		power-supply = <&panel_reg>;
++		enable-gpios = <&gph1 7 GPIO_ACTIVE_HIGH>;
++		pinctrl-0 = <&lcd_en>;
++		pinctrl-names = "default";
++		no-hpd;
++
++		port {
++			panel_in: endpoint {
++				remote-endpoint = <&dp_out>;
++			};
++		};
++	};
++
++	mxt_booster_reg: fixed-regulator-mxt-booster {
++		compatible = "regulator-fixed";
++		regulator-name = "MXT_BOOSTER";
++		pinctrl-0 = <&mxt_booster>;
++		pinctrl-names = "default";
++		gpio = <&gpd1 1 GPIO_ACTIVE_HIGH>;
++		status = "okay";
++	};
++
++	mxt_xvdd_reg: fixed-regulator-mxt-xvdd {
++		compatible = "regulator-fixed";
++		regulator-name = "MXT_XVDD";
++		pinctrl-0 = <&mxt_xvdd>;
++		pinctrl-names = "default";
++		gpio = <&gpg0 1 GPIO_ACTIVE_HIGH>;
++		startup-delay-us = <3000>;
++		vin-supply = <&mxt_booster_reg>;
++		status = "okay";
++	};
++
++	hsotg: hsotg@12140000 {
++		compatible = "samsung,s3c6400-hsotg";
++		reg = <0x12140000 0x20000>;
++		interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
++
++		clocks = <&clock CLK_USBOTG>;
++		clock-names = "otg";
++		phys = <&usb2_phy_gen 0>;
++		phy-names = "usb2-phy";
++
++		vusb_d-supply = <&ldo15_reg>;
++		vusb_a-supply = <&ldo12_reg>;
++
++		dr_mode = "otg";
++		usb-role-switch;
++		role-switch-default-mode = "peripheral";
++
++		status = "okay";
++
++		ports {
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			port@0 {
++				reg = <0>;
++				hsotg_hs: endpoint {
++					remote-endpoint = <&usb_con_hs>;
++				};
++			};
++		};
++	};
++
++	connector {
++		compatible = "gpio-usb-b-connector", "usb-b-connector";
++		label = "mini-USB";
++		type = "micro";
++		pinctrl-names = "default";
++		pinctrl-0 = <&usb_id &otg_vbus_sense &otg_vbus_sense_fac>;
++		id-gpios = <&gpx1 1 GPIO_ACTIVE_HIGH>;
++		vbus-gpios = <&gpx1 0 GPIO_ACTIVE_HIGH>;
++		vbus-supply = <&usb_vbus>;
++
++		ports {
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			port@0 {
++				reg = <0>;
++				usb_con_hs: endpoint {
++					remote-endpoint = <&hsotg_hs>;
++				};
++			};
++		};
++	};
++
++};
++
++// Serial
++&serial_0 {
++	pinctrl-names = "default", "flow-control";
++	pinctrl-0 = <&uart0_data>;
++	pinctrl-1 = <&uart0_data>, <&uart0_fctl>;
++	status = "okay";
++};
++
++&serial_1 {
++	pinctrl-names = "default", "flow-control";
++	pinctrl-0 = <&uart1_data>;
++	pinctrl-1 = <&uart1_data>, <&uart1_fctl>;
++	status = "okay";
++};
++
++&serial_2 {
++	pinctrl-names = "default", "flow-control";
++	pinctrl-0 = <&uart2_data>;
++	pinctrl-1 = <&uart2_data>, <&uart2_fctl>;
++	status = "okay";
++};
++
++&serial_3 {
++	pinctrl-names = "default";
++	pinctrl-0 = <&uart3_data>;
++	status = "okay";
++};
++
++// I2C
++&i2c_0{
++	status = "okay";
++	/* used by HDMI DDC */
++	samsung,i2c-sda-delay = <100>;
++	samsung,i2c-max-bus-freq = <65000>;
++	//exynos_hdcp
++	//exynos_edid
++};
++
++//&i2c_1{
++//	//as3668 LED driver (no driver nor DT in kernel)
++//	};
++
++&i2c_2{
++	status = "okay";
++	ds2482: onewire@18 {
++		compatible = "maxim,ds2482";
++		reg = <0x18>;
++
++		w1_ds2784: slave-ds2784 {
++			compatible = "maxim,ds2784";
++		};
++	};
++	power_supply: charger@6 {
++		compatible = "summit,smb347";
++		reg = <0x06>;
++
++		interrupt-parent = <&gpx0>;
++		//interrupts = <0 IRQ_TYPE_LEVEL_LOW>;
++		interrupts = <4 IRQ_TYPE_LEVEL_LOW>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&smb347_irq &ta_int &ta_en &usb_sel_1>;
++		enable-gpios = <&gpg1 5 GPIO_ACTIVE_HIGH>;
++
++		monitored-battery = <&battery_cell>;
++		summit,enable-usb-charging;
++		//summit,enable-otg-charging;
++		summit,enable-mains-charging;
++		summit,enable-charge-control = <SMB3XX_CHG_ENABLE_PIN_ACTIVE_LOW>;
++		summit,fast-voltage-threshold-microvolt = <2600000>;
++		summit,mains-current-limit-microamp = <2000000>;
++		summit,usb-current-limit-microamp = <1800000>;
++		//summit,charge-current-compensation-microamp = ;
++		//summit,chip-temperature-threshold-celsius = <110>;
++		//summit,soft-compensation-method = ;
++		//summit,inok-polarity = <SMB3XX_SYSOK_INOK_ACTIVE_LOW>;
++
++
++		usb_vbus: usb-vbus {
++			regulator-name = "vbus";
++			regulator-min-microvolt = <5000000>;
++			regulator-max-microvolt = <5000000>;
++			regulator-min-microamp = <750000>;
++			regulator-max-microamp = <750000>;
++			//summit,needs-inok-toggle;
++		};
++	};
++};
++
++&i2c_3{
++	status = "okay";
++	touchscreen: touchscreen@4a {
++        compatible = "atmel,maxtouch";
++        reg = <0x4a>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&mxt_rst &mxt_irq>;
++		interrupt-parent = <&gpg1>;
++        interrupts = <2 IRQ_TYPE_EDGE_FALLING>;
++		reset-gpios = <&gpg1 3 GPIO_ACTIVE_LOW>;
++		vdda-supply = <&ldo23_reg>;
++        vdd-supply = <&ldo9_reg>;
++	};
++};
++
++//&i2c_4{
++//	//audience es305 Voice processor
++//};
++
++&i2c_5 {
++	status = "okay";
++	samsung,i2c-sda-delay = <100>;
++
++	max77686: pmic@9 {
++		compatible = "maxim,max77686";
++		reg = <0x09>;
++		interrupt-parent = <&gpx0>;
++		interrupts = <2 IRQ_TYPE_LEVEL_LOW>;
++		pinctrl-names = "default";
++		pinctrl-0 = <&max77686_irq>;
++		#clock-cells = <1>;
++		wakeup-source;
++
++		//Not sure DVS is supported by the driver...
++		//Found this in an old patch proposal
++		max77686,pmic-buck-default-dvs-idx = <1>;
++		max77686,pmic-buck-dvs-gpios =	<&gpv0 7 0>,
++										<&gpv0 6 0>,
++										<&gpv0 5 0>;
++		max77686,pmic-buck-selb-gpios = <&gpv0 4 0>,
++										<&gpv0 1 0>,
++										<&gpv0 0 0>;
++
++		voltage-regulators {
++			ldo3_reg: LDO3 {
++				regulator-name = "VCC_1.8V_AP";
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <1800000>;
++				regulator-always-on;
++				regulator-boot-on;
++			};
++			ldo8_reg: LDO8 {
++				regulator-name = "VMIPI_1.0V";
++				regulator-min-microvolt = <1000000>;
++				regulator-max-microvolt = <1000000>;
++				regulator-always-on;
++				regulator-boot-on;
++			};
++			ldo9_reg: LDO9 {
++				regulator-name = "TOUCH_VDD_1.8V";
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <1800000>;
++			};
++			ldo10_reg: LDO10 {
++				regulator-name = "VMIPI_1.8V";
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <1800000>;
++				regulator-always-on;
++				regulator-boot-on;
++			};
++			ldo12_reg: LDO12 {
++				regulator-name = "VUOTG_3.0V";
++				regulator-min-microvolt = <3000000>;
++				regulator-max-microvolt = <3000000>;
++				regulator-always-on;
++				regulator-boot-on;
++			};
++			ldo15_reg: LDO15 {
++				regulator-name = "VHSIC_1.0V";
++				regulator-min-microvolt = <1000000>;
++				regulator-max-microvolt = <1000000>;
++				regulator-always-on;
++				regulator-boot-on;
++			};
++			ldo16_reg: LDO16 {
++				regulator-name = "VHSIC_1.8V";
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <1800000>;
++				regulator-always-on;
++				regulator-boot-on;
++			};
++			ldo17_reg: LDO17 {
++				regulator-name = "5M_CORE_1.5V";
++				regulator-min-microvolt = <1500000>;
++				regulator-max-microvolt = <1500000>;
++			};
++			ldo18_reg: LDO18 {
++				regulator-name = "CAM_IO_1.8V";
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <1800000>;
++			};
++			ldo19_reg: LDO19 {
++				regulator-name = "VT_CAM_1.8V";
++				regulator-min-microvolt = <1800000>;
++				regulator-max-microvolt = <1800000>;
++			};
++			ldo20_reg: LDO20 {
++				regulator-name = "TA_CHECK_1.35V";
++				regulator-min-microvolt = <1350000>;
++				regulator-max-microvolt = <1350000>;
++			};
++			ldo23_reg: LDO23 {
++				regulator-name = "TSP_AVDD_2.8V";
++				regulator-min-microvolt = <2800000>;
++				regulator-max-microvolt = <2800000>;
++			};
++			ldo24_reg: LDO24 {
++				regulator-name = "CAM_AF_2.8V";
++				regulator-min-microvolt = <2800000>;
++				regulator-max-microvolt = <2800000>;
++			};
++			ldo25_reg: LDO25 {
++				regulator-name = "VADC_3.3V";
++				regulator-min-microvolt = <3300000>;
++				regulator-max-microvolt = <3300000>;
++				regulator-always-on;
++				regulator-boot-on;
++			};
++			buck1_reg: BUCK1 {
++				regulator-name = "vdd_mif";
++				regulator-min-microvolt = <850000>;
++				regulator-max-microvolt = <1200000>;
++				regulator-always-on;
++				regulator-boot-on;
++			};
++			buck2_reg: BUCK2 {
++				regulator-name = "vdd_arm";
++				regulator-min-microvolt = <850000>;
++				regulator-max-microvolt = <1200000>;
++				regulator-always-on;
++				regulator-boot-on;
++			};
++			buck3_reg: BUCK3 {
++				regulator-name = "vdd_int";
++				regulator-min-microvolt = <850000>;
++				regulator-max-microvolt = <1200000>;
++				regulator-always-on;
++				regulator-boot-on;
++			};
++			buck4_reg: BUCK4 {
++				regulator-name = "vdd_g3d";
++				regulator-min-microvolt = <850000>;
++				regulator-max-microvolt = <1200000>;
++				regulator-boot-on;
++			};
++		};
++	};
++};
++
++//&i2c_7{
++//	//wm1811 CODEC
++//};
++//
++
++&i2c_8 {
++	status = "okay";
++	/* used by HDMI PHY */
++	samsung,i2c-sda-delay = <100>;
++	samsung,i2c-max-bus-freq = <65000>;
++};
++
++&mmc_0{
++	status = "okay";
++	broken-cd;
++	non-removable;
++	max-frequency = <200000000>;
++	sd-uhs-ddr50;
++	mmc-ddr-1_8v;
++	cap-mmc-hw-reset;
++	mmc-hs200-1_8v;
++	//cap-mmc-highspeed;
++	bus-width = <8>;
++	card-detect-delay = <200>;
++	samsung,dw-mshc-ciu-div = <3>;
++	samsung,dw-mshc-sdr-timing = <1 2>;
++	samsung,dw-mshc-ddr-timing = <2 3>;
++	pinctrl-names = "default";
++	pinctrl-0 = <&sd0_clk &sd0_cmd &sd0_bus4 &sd0_bus8>;
++};
++
++&mmc_1{
++	status = "okay";
++	non-removable;
++	max-frequency = <200000000>;
++	sd-uhs-sdr104;
++	cap-sd-highspeed;
++	//cap-mmc-highspeed;
++	keep-power-in-suspend;
++	bus-width = <4>;
++	card-detect-delay = <0>;
++	samsung,dw-mshc-ciu-div = <3>;
++	samsung,dw-mshc-sdr-timing = <2 4>;
++	samsung,dw-mshc-ddr-timing = <2 3>;
++	pinctrl-names = "default";
++	pinctrl-0 = <&sd1_clk &sd1_cmd &sd1_bus4>;
++	mmc-pwrseq = <&wlan_pwrseq>;
++
++	brcmf: wifi@1 {
++		compatible = "brcm,bcm4330-fmac", "brcm,bcm4329-fmac";
++		reg = <1>;
++		interrupt-parent = <&gpx2>;
++		interrupts = <5 IRQ_TYPE_NONE>;
++		interrupt-names = "host-wake";
++	};
++};
++
++&pinctrl_0 {
++	mxt_booster: mxt-booster {
++		samsung,pins = "gpd1-1";
++		samsung,pin-con-pdn = <EXYNOS_PIN_PDN_PREV>;
++	};
++
++	max77686_irq: max77686-irq {
++		samsung,pins = "gpx0-2";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_F>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-drv = <EXYNOS4_PIN_DRV_LV1>;
++	};
++	ta_int: ta-int {
++		samsung,pins = "gpx0-0";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_INPUT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++	};
++	smb347_irq: smb347-irq {
++		samsung,pins = "gpx0-4";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_INPUT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++	};
++	otg_vbus_sense: otg-vbus-sense {
++		samsung,pins = "gpx1-0";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_INPUT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++	};
++	otg_vbus_sense_fac: otg-vbus-sense-fac {
++		samsung,pins = "gpb0-1";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_INPUT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-con-pdn = <EXYNOS_PIN_PDN_PREV>;
++		samsung,pin-pud-pdn = <EXYNOS_PIN_PULL_NONE>;
++	};
++	pwm_in_18v: pwm-in-18v {
++		samsung,pins = "gpb2-0";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_OUTPUT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-drv = <EXYNOS4_PIN_DRV_LV1>;
++		samsung,pin-con-pdn = <EXYNOS_PIN_PDN_INPUT>;
++		samsung,pin-pud-pdn = <EXYNOS_PIN_PULL_UP>;
++		samsung,pin-val = <0>;
++	};
++	power_irq: power-irq-pins {
++		samsung,pins = "gpx2-7";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_F>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-drv = <EXYNOS4_PIN_DRV_LV1>;
++	};
++	usb_id: usb-id {
++		samsung,pins = "gpx1-1";
++		samsung,pin-con-pdn = <EXYNOS_PIN_PDN_INPUT>;
++		samsung,pin-pud-pdn = <EXYNOS_PIN_PULL_NONE>;
++	};
++	wlan_irq: wlan-irq {
++		samsung,pins = "gpx2-5";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_INPUT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-drv = <EXYNOS4_PIN_DRV_LV3>;
++	};
++};
++&sd1_cmd {
++	samsung,pin-con-pdn = <EXYNOS_PIN_PDN_INPUT>;
++	samsung,pin-pud-pdn = <EXYNOS_PIN_PULL_NONE>;
++};
++&sd1_bus4 {
++	samsung,pin-con-pdn = <EXYNOS_PIN_PDN_INPUT>;
++	samsung,pin-pud-pdn = <EXYNOS_PIN_PULL_NONE>;
++};
++
++&pinctrl_1 {
++	led_bl_rst: led-bl-rst {
++		samsung,pins = "gpg0-5";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_OUTPUT>;
++		samsung,pin-con-pdn = <EXYNOS_PIN_PDN_PREV>;
++		samsung,pin-pud-pdn = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-val = <0>;
++	};
++	aps_en_18v: aps-en-18v {
++		samsung,pins = "gph1-6";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_OUTPUT>;
++		samsung,pin-con-pdn = <EXYNOS_PIN_PDN_INPUT>;
++		samsung,pin-pud-pdn = <EXYNOS_PIN_PULL_UP>;
++		samsung,pin-val = <0>;
++	};
++	lcd_en: lcd-en {
++		samsung,pins = "gph1-7";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_OUTPUT>;
++		samsung,pin-val = <0>;
++	};
++	mxt_irq: mxt-irq {
++		samsung,pins = "gpg1-2";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_EINT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-con-pdn = <EXYNOS_PIN_PDN_PREV>;
++		samsung,pin-pud-pdn = <EXYNOS_PIN_PULL_NONE>;
++	};
++	mxt_rst: mxt-rst {
++		samsung,pins = "gpg1-3";
++		samsung,pin-con-pdn = <EXYNOS_PIN_PDN_PREV>;
++	};
++	mxt_xvdd: mxt-xvdd {
++		samsung,pins = "gpg0-1";
++		samsung,pin-con-pdn = <EXYNOS_PIN_PDN_PREV>;
++	};
++	ta_en: ta-en {
++		samsung,pins = "gpg1-5";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_OUTPUT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-con-pdn = <EXYNOS_PIN_PDN_PREV>;
++		samsung,pin-pud-pdn = <EXYNOS_PIN_PULL_NONE>;
++	};
++	usb_sel_1: usb-sel-1 {
++		samsung,pins = "gph0-1";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_OUTPUT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-pud-pdn = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-val = <1>;
++	};
++};
++
++&pinctrl_2 {
++	wlan_pmena: wlan-pmena {
++		samsung,pins = "gpv1-0";
++		samsung,pin-function = <EXYNOS_PIN_FUNC_OUTPUT>;
++		samsung,pin-pud = <EXYNOS_PIN_PULL_NONE>;
++		samsung,pin-drv = <EXYNOS4_PIN_DRV_LV3>;
++		samsung,pin-con-pdn = <EXYNOS_PIN_PDN_PREV>;
++		samsung,pin-val = <0>;
++	};
++};
++
++&cpu0 {
++	cpu0-supply = <&buck2_reg>;
++	//clock-frequency = <1700000000>;
++};
++
++&cpu1 {
++	//clock-frequency = <1700000000>;
++};
++
++&clock {
++	assigned-clocks = <&clock CLK_FOUT_APLL>;
++	assigned-clock-rates = <1000000000>;
++};
++
++&rtc {
++	clocks = <&clock CLK_RTC>, <&max77686 MAX77686_CLK_AP>;
++	clock-names = "rtc", "rtc_src";
++
++	status = "okay";
++};
++
++&usb2_phy_gen {
++	status = "okay";
++};
++
++&ehci {
++	//samsung,vbus-gpio = <&gpx1 0 GPIO_ACTIVE_HIGH>;
++	//status = "okay";
++	status = "disabled";
++};
++
++&ohci {
++	status = "disabled";
++};
++
++&usbdrd {
++	status = "disabled";
++};
++
++&usbdrd_dwc3 {
++	status = "disabled";
++};
++
++&usbdrd_phy {
++	status = "disabled";
++};
++
++&fimd {
++	assigned-clocks = <&clock CLK_MOUT_FIMD1>, <&clock CLK_MOUT_VPLL>;
++	assigned-clock-parents = <&clock CLK_MOUT_VPLL>;
++	assigned-clock-rates = <0>, <268627197>;
++
++	status = "okay";
++};
++
++&dp {
++	samsung,color-space = <0>;
++	samsung,color-depth = <1>;
++	samsung,link-rate = <0x0a>;
++	samsung,lane-count = <4>;
++	samsung,dynamic-range = <0>;
++	samsung,ycbcr-coeff = <0>;
++
++	status = "okay";
++
++	ports {
++		port {
++			dp_out: endpoint {
++				remote-endpoint = <&panel_in>;
++			};
++		};
++	};
++};
++
++&mixer {
++	status = "okay";
++};
++
++&mali {
++	status = "okay";
++	mali-supply = <&buck4_reg>;
++};

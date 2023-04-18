@@ -1,0 +1,91 @@
+diff --git a/drivers/clk/samsung/clk-exynos5250.c b/drivers/clk/samsung/clk-exynos5250.c
+index 113df773e..cb06b28f6 100644
+--- a/drivers/clk/samsung/clk-exynos5250.c
++++ b/drivers/clk/samsung/clk-exynos5250.c
+@@ -279,7 +279,7 @@ static const struct samsung_mux_clock exynos5250_mux_clks[] __initconst = {
+ 
+ 	MUX(0, "mout_cpll", mout_cpll_p, SRC_TOP2, 8, 1),
+ 	MUX(0, "mout_epll", mout_epll_p, SRC_TOP2, 12, 1),
+-	MUX(0, "mout_vpll", mout_vpll_p, SRC_TOP2, 16, 1),
++	MUX(CLK_MOUT_VPLL, "mout_vpll", mout_vpll_p, SRC_TOP2, 16, 1),
+ 	MUX(0, "mout_mpll_user", mout_mpll_user_p, SRC_TOP2, 20, 1),
+ 	MUX(0, "mout_bpll_user", mout_bpll_user_p, SRC_TOP2, 24, 1),
+ 	MUX(CLK_MOUT_GPLL, "mout_gpll", mout_gpll_p, SRC_TOP2, 28, 1),
+@@ -300,7 +300,7 @@ static const struct samsung_mux_clock exynos5250_mux_clks[] __initconst = {
+ 	MUX(0, "mout_gscl_wa", mout_group1_p, SRC_GSCL, 24, 4),
+ 	MUX(0, "mout_gscl_wb", mout_group1_p, SRC_GSCL, 28, 4),
+ 
+-	MUX(0, "mout_fimd1", mout_group1_p, SRC_DISP1_0, 0, 4),
++	MUX(CLK_MOUT_FIMD1, "mout_fimd1", mout_group1_p, SRC_DISP1_0, 0, 4),
+ 	MUX(0, "mout_mipi1", mout_group1_p, SRC_DISP1_0, 12, 4),
+ 	MUX(0, "mout_dp", mout_group1_p, SRC_DISP1_0, 16, 4),
+ 	MUX(CLK_MOUT_HDMI, "mout_hdmi", mout_hdmi_p, SRC_DISP1_0, 20, 1),
+@@ -687,6 +687,8 @@ static const struct exynos5_subcmu_info *exynos5250_subcmus[] = {
+ 
+ static const struct samsung_pll_rate_table vpll_24mhz_tbl[] __initconst = {
+ 	/* sorted in descending order */
++	/* Needed for eDP on manta */
++	PLL_36XX_RATE(24 * MHZ, 268627197, 268, 6, 2, 41104),
+ 	/* PLL_36XX_RATE(rate, m, p, s, k) */
+ 	PLL_36XX_RATE(24 * MHZ, 266000000, 266, 3, 3, 0),
+ 	/* Not in UM, but need for eDP on snow */
+diff --git a/include/dt-bindings/clock/exynos5250.h b/include/dt-bindings/clock/exynos5250.h
+index 4680da735..85044e415 100644
+--- a/include/dt-bindings/clock/exynos5250.h
++++ b/include/dt-bindings/clock/exynos5250.h
+@@ -176,8 +176,10 @@
+ #define CLK_MOUT_APLL		1028
+ #define CLK_MOUT_MPLL		1029
+ #define CLK_MOUT_VPLLSRC	1030
++#define CLK_MOUT_FIMD1		1031
++#define CLK_MOUT_VPLL		1032
+ 
+ /* must be greater than maximal clock id */
+-#define CLK_NR_CLKS		1031
++#define CLK_NR_CLKS		1033
+ 
+ #endif /* _DT_BINDINGS_CLOCK_EXYNOS_5250_H */
+diff --git a/drivers/gpu/drm/panel/panel-edp.c b/drivers/gpu/drm/panel/panel-edp.c
+index 4b39d1dd9..feba52e60 100644
+--- a/drivers/gpu/drm/panel/panel-edp.c
++++ b/drivers/gpu/drm/panel/panel-edp.c
+@@ -1575,6 +1575,29 @@ static const struct panel_desc samsung_lsn122dl01_c01 = {
+ 	},
+ };
+ 
++static const struct drm_display_mode samsung_ltl101dl02_002_mode = {
++	.clock = 268627,
++	.hdisplay = 2560,
++	.hsync_start = 2560 + 48,
++	.hsync_end = 2560 + 48 + 32,
++	.htotal = 2560 + 48 + 32 + 80,
++	.vdisplay = 1600,
++	.vsync_start = 1600 + 3,
++	.vsync_end = 1600 + 3 + 6,
++	.vtotal = 1600 + 3 + 6 + 37,
++	.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
++};
++
++static const struct panel_desc samsung_ltl101dl02_002 = {
++	.modes = &samsung_ltl101dl02_002_mode,
++	.num_modes = 1,
++	.bpc = 6,
++	.size = {
++		.width = 218,
++		.height = 136,
++	},
++};
++
+ static const struct drm_display_mode samsung_ltn140at29_301_mode = {
+ 	.clock = 76300,
+ 	.hdisplay = 1366,
+@@ -1793,6 +1816,9 @@ static const struct of_device_id platform_of_match[] = {
+ 	}, {
+ 		.compatible = "samsung,lsn122dl01-c01",
+ 		.data = &samsung_lsn122dl01_c01,
++	}, {
++		.compatible = "samsung,ltl101dl02-002",
++		.data = &samsung_ltl101dl02_002,
+ 	}, {
+ 		.compatible = "samsung,ltn140at29-301",
+ 		.data = &samsung_ltn140at29_301,

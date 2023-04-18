@@ -1,0 +1,16 @@
+diff --git a/arch/arm/mach-exynos/firmware.c b/arch/arm/mach-exynos/firmware.c
+index 2da5b60b5..39065032c 100644
+--- a/arch/arm/mach-exynos/firmware.c
++++ b/arch/arm/mach-exynos/firmware.c
+@@ -61,9 +61,9 @@ static int exynos_cpu_boot(int cpu)
+ 	 * Exynos3250 doesn't need to send smc command for secondary CPU boot
+ 	 * because Exynos3250 removes WFE in secure mode.
+ 	 *
+-	 * On Exynos5 devices the call is ignored by trustzone firmware.
++	 * On all Exynos5 devices except Exynos5250, the call is ignored by trustzone firmware.
+ 	 */
+-	if (!soc_is_exynos4210() && !soc_is_exynos4412())
++	if (!soc_is_exynos4210() && !soc_is_exynos4412() && !soc_is_exynos5250())
+ 		return 0;
+ 
+ 	/*
